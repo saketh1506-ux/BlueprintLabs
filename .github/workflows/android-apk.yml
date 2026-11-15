@@ -1,0 +1,139 @@
+name: Android Build & APK Release
+
+on:
+  push:
+    branches: [ master, main ]
+    tags:
+      - 'v*'
+  pull_request:
+    branches: [ master, main ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-apk:
+    name: Build Android APK
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: android-webview
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Validate Figma Prototype URL
+        run: |
+          echo "🔍 Validating Figma Prototype URL in MainActivity.kt..."
+          MAIN_ACTIVITY="app/src/main/java/com/blueprintlabs/app/MainActivity.kt"
+          
+          if grep -q "YOUR_PUBLIC_FIGMA_PROTOTYPE_URL" "$MAIN_ACTIVITY" || grep -q "PLACEHOLDER" "$MAIN_ACTIVITY"; then
+            echo "❌ BUILD FAILED: MainActivity.kt contains an unconfigured placeholder URL!"
+            echo "Please set the confirmed public Figma prototype URL in MainActivity.kt before building."
+            exit 1
+          fi
+
+          if ! grep -q "https://www.figma.com/proto/" "$MAIN_ACTIVITY"; then
+            echo "❌ BUILD FAILED: FIGMA_PROTOTYPE_URL does not point to a valid public Figma prototype URL ('https://www.figma.com/proto/...')."
+            exit 1
+          fi
+
+          echo "✅ Figma prototype URL validation passed."
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: Make Gradle Wrapper Executable
+        run: chmod +x gradlew
+
+      - name: Build Debug APK
+        run: ./gradlew assembleDebug --stacktrace
+
+      - name: Verify APK Generation
+        run: |
+          APK_PATH="app/build/outputs/apk/debug/app-debug.apk"
+          if [ ! -f "$APK_PATH" ]; then
+            echo "❌ Error: app-debug.apk was not generated!"
+            exit 1
+          fi
+          
+          FILE_SIZE=$(stat -c%s "$APK_PATH")
+          if [ "$FILE_SIZE" -le 1000 ]; then
+            echo "❌ Error: app-debug.apk is empty or corrupt ($FILE_SIZE bytes)!"
+            exit 1
+          fi
+          
+          echo "✅ app-debug.apk successfully built and verified ($FILE_SIZE bytes)."
+
+      - name: Package Submission ZIP (Only app-debug.apk)
+        run: |
+          mkdir -p submission
+          cp app/build/outputs/apk/debug/app-debug.apk submission/app-debug.apk
+          cd submission
+          zip -9 -j BlueprintLabs_Submission.zip app-debug.apk
+          
+          # Verify ZIP contents strictly
+          ZIP_CONTENTS=$(unzip -Z -1 BlueprintLabs_Submission.zip)
+          echo "ZIP Contents: $ZIP_CONTENTS"
+          
+          if [ "$ZIP_CONTENTS" != "app-debug.apk" ]; then
+            echo "❌ Error: BlueprintLabs_Submission.zip must contain ONLY app-debug.apk, but contains: $ZIP_CONTENTS"
+            exit 1
+          fi
+          
+          echo "✅ BlueprintLabs_Submission.zip verified: contains exclusively app-debug.apk."
+          cd ..
+
+      - name: Upload Debug APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-debug
+          path: android-webview/app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 14
+
+      - name: Upload Submission ZIP Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: BlueprintLabs_Submission
+          path: android-webview/submission/BlueprintLabs_Submission.zip
+          retention-days: 14
+
+      - name: Create Versioned GitHub Release (Tags Only)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          name: BlueprintLabs Release ${{ github.ref_name }}
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+          files: |
+            android-webview/app/build/outputs/apk/debug/app-debug.apk
+            android-webview/submission/BlueprintLabs_Submission.zip
+          body: |
+            ## BlueprintLabs Official APK Release - ${{ github.ref_name }}
+
+            This is the official native Android APK deliverable for BlueprintLabs.
+
+            ### Package Details:
+            - **App Name:** BlueprintLabs
+            - **Package ID:** `com.blueprintlabs.app`
+            - **Target:** Android 14 (API 34)
+            - **Min SDK:** Android 8.0 (API 26)
+            - **Architecture:** Kotlin Empty Views Activity + Fullscreen Android WebView
+            - **Embedded Prototype:** Interactive BlueprintLabs Figma Prototype
+
+            ### Assets Included:
+            1. `app-debug.apk` – Standalone installable Android APK.
+            2. `BlueprintLabs_Submission.zip` – Assignment submission ZIP containing exclusively `app-debug.apk`.
