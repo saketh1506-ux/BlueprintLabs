@@ -7,12 +7,13 @@ node_modules/
 *.env
 setup_mysql.sql
 
-# Build outputs
+# Build outputs and artifacts
 dist/
 build/
 .expo/
 *.apk
 *.aab
+build-artifacts/
 
 # Logs and system
 *.log
