@@ -32,7 +32,6 @@ jobs:
           
           if grep -q "YOUR_PUBLIC_FIGMA_PROTOTYPE_URL" "$MAIN_ACTIVITY" || grep -q "PLACEHOLDER" "$MAIN_ACTIVITY"; then
             echo "❌ BUILD FAILED: MainActivity.kt contains an unconfigured placeholder URL!"
-            echo "Please set the confirmed public Figma prototype URL in MainActivity.kt before building."
             exit 1
           fi
 
@@ -48,9 +47,6 @@ jobs:
         with:
           distribution: 'temurin'
           java-version: '17'
-
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
