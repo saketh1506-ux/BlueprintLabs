@@ -1,6 +1,17 @@
-<resources>
-    <style name="Theme.BlueprintLabs" parent="android:Theme.Material.Light.NoActionBar">
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <!-- Base application theme inheriting from Theme.MaterialComponents or Theme.AppCompat -->
+    <style name="Theme.BlueprintLabs" parent="Theme.MaterialComponents.Light.NoActionBar">
+        <!-- Primary brand colors -->
+        <item name="colorPrimary">#1E2A4A</item>
+        <item name="colorPrimaryVariant">#0F172A</item>
+        <item name="colorOnPrimary">#FFFFFF</item>
+        <!-- Secondary brand colors -->
+        <item name="colorSecondary">#3B82F6</item>
+        <item name="colorSecondaryVariant">#2563EB</item>
+        <item name="colorOnSecondary">#FFFFFF</item>
+        <!-- Status bar color -->
         <item name="android:statusBarColor">#1E2A4A</item>
         <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowBackground">#FFFFFF</item>
     </style>
 </resources>

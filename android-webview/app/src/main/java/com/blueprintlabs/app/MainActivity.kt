@@ -2,11 +2,10 @@ package com.blueprintlabs.app
 
 import android.annotation.SuppressLint
 import android.graphics.Bitmap
-import android.net.http.SslError
 import android.os.Bundle
+import android.util.Log
 import android.view.View
 import android.webkit.CookieManager
-import android.webkit.SslErrorHandler
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
@@ -22,6 +21,8 @@ import androidx.appcompat.app.AppCompatActivity
 
 class MainActivity : AppCompatActivity() {
 
+    private val tag = "BlueprintLabsMain"
+
     private lateinit var webView: WebView
     private lateinit var loadingLayout: LinearLayout
     private lateinit var progressBar: ProgressBar
@@ -30,10 +31,6 @@ class MainActivity : AppCompatActivity() {
     private lateinit var errorDescription: TextView
     private lateinit var btnRetry: Button
 
-    // =========================================================================
-    // CONFIGURATION: PUBLIC FIGMA PROTOTYPE URL
-    // Loaded without device frame emulation so it fits the mobile screen natively.
-    // =========================================================================
     companion object {
         const val FIGMA_PROTOTYPE_URL =
             "https://www.figma.com/proto/7KDm12r6ZNLuECGGWqu0Gr/UI-UX-Project---BlueprintLabs?node-id=0-1&scaling=scale-down&starting-point-node-id=0%3A1&mode=design"
@@ -42,24 +39,28 @@ class MainActivity : AppCompatActivity() {
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_main)
+        try {
+            setContentView(R.layout.activity_main)
 
-        webView = findViewById(R.id.webview)
-        loadingLayout = findViewById(R.id.loadingLayout)
-        progressBar = findViewById(R.id.progressBar)
-        loadingText = findViewById(R.id.loadingText)
-        errorLayout = findViewById(R.id.errorLayout)
-        errorDescription = findViewById(R.id.errorDescription)
-        btnRetry = findViewById(R.id.btnRetry)
+            webView = findViewById(R.id.webview)
+            loadingLayout = findViewById(R.id.loadingLayout)
+            progressBar = findViewById(R.id.progressBar)
+            loadingText = findViewById(R.id.loadingText)
+            errorLayout = findViewById(R.id.errorLayout)
+            errorDescription = findViewById(R.id.errorDescription)
+            btnRetry = findViewById(R.id.btnRetry)
 
-        configureWebView()
-        setupBackNavigation()
+            configureWebView()
+            setupBackNavigation()
 
-        btnRetry.setOnClickListener {
+            btnRetry.setOnClickListener {
+                loadPrototype()
+            }
+
             loadPrototype()
+        } catch (t: Throwable) {
+            Log.e(tag, "Fatal initialization error in onCreate", t)
         }
-
-        loadPrototype()
     }
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -71,10 +72,14 @@ class MainActivity : AppCompatActivity() {
         settings.domStorageEnabled = true
         settings.databaseEnabled = true
 
-        // 2. Cookie Management for Figma sessions & tokens
-        val cookieManager = CookieManager.getInstance()
-        cookieManager.setAcceptCookie(true)
-        cookieManager.setAcceptThirdPartyCookies(webView, true)
+        // 2. Safe Cookie Management
+        try {
+            val cookieManager = CookieManager.getInstance()
+            cookieManager.setAcceptCookie(true)
+            cookieManager.setAcceptThirdPartyCookies(webView, true)
+        } catch (e: Exception) {
+            Log.w(tag, "CookieManager initialization warning", e)
+        }
 
         // 3. Viewport and Mobile Scaling
         settings.loadWithOverviewMode = true
@@ -89,19 +94,23 @@ class MainActivity : AppCompatActivity() {
         settings.allowFileAccess = false
         settings.allowContentAccess = false
 
-        // 5. Standard Mobile Chrome User-Agent
-        // Using a clean standard Chrome Android UA prevents Figma from denying custom embedded client agents
-        settings.userAgentString =
-            "Mozilla/5.0 (Linux; Android 14; Pixel 6 Build/AP1A.240405.002; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/124.0.6367.179 Mobile Safari/537.36"
+        // 5. User-Agent: Use default WebView UA to prevent any Android version mismatch
+        // Using the default system User-Agent ensures maximum compatibility across all Android OS versions
+        val defaultUA = settings.userAgentString
+        Log.i(tag, "Default WebView UA: $defaultUA")
 
         // 6. WebChromeClient for page loading progress
         webView.webChromeClient = object : WebChromeClient() {
             override fun onProgressChanged(view: WebView?, newProgress: Int) {
                 super.onProgressChanged(view, newProgress)
-                if (newProgress in 1..99) {
-                    loadingText.text = "Loading Prototype... $newProgress%"
-                } else if (newProgress == 100) {
-                    loadingLayout.visibility = View.GONE
+                try {
+                    if (newProgress in 1..99) {
+                        loadingText.text = "Loading Prototype... $newProgress%"
+                    } else if (newProgress == 100) {
+                        loadingLayout.visibility = View.GONE
+                    }
+                } catch (e: Exception) {
+                    Log.w(tag, "Progress update error", e)
                 }
             }
         }
@@ -125,11 +134,10 @@ class MainActivity : AppCompatActivity() {
                 error: WebResourceError?
             ) {
                 super.onReceivedError(view, request, error)
-                // Trigger native error layout only when the main frame fails to load
                 if (request?.isForMainFrame == true) {
                     loadingLayout.visibility = View.GONE
                     errorLayout.visibility = View.VISIBLE
-                    errorDescription.text = "Failed to load prototype (${error?.description ?: "Network error"}).\nPlease check your internet connection and try again."
+                    errorDescription.text = "Unable to load prototype (${error?.description ?: "Network error"}).\nPlease check your internet connection."
                 }
             }
 
@@ -137,7 +145,6 @@ class MainActivity : AppCompatActivity() {
                 view: WebView?,
                 request: WebResourceRequest?
             ): Boolean {
-                // Keep all in-prototype and Figma navigations inside the WebView
                 return false
             }
         }
@@ -151,7 +158,6 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun setupBackNavigation() {
-        // Android 14 (API 34) Back-Button handling
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
                 if (webView.canGoBack()) {
@@ -175,7 +181,11 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
-        webView.destroy()
+        try {
+            webView.destroy()
+        } catch (e: Exception) {
+            Log.w(tag, "WebView destroy warning", e)
+        }
         super.onDestroy()
     }
 }
