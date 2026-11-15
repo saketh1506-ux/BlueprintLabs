@@ -10,41 +10,79 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent" />
 
-    <!-- Centered Loading Spinner -->
-    <ProgressBar
-        android:id="@+id/progressBar"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_centerInParent="true"
-        android:indeterminate="true"
-        android:visibility="visible" />
+    <!-- Centered Loading Overlay with Official BlueprintLabs Logo -->
+    <LinearLayout
+        android:id="@+id/loadingLayout"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#FFFFFF"
+        android:gravity="center"
+        android:orientation="vertical"
+        android:padding="24dp"
+        android:visibility="visible">
 
-    <!-- Offline / Error Container -->
+        <ImageView
+            android:layout_width="160dp"
+            android:layout_height="160dp"
+            android:contentDescription="@string/app_name"
+            android:scaleType="fitCenter"
+            android:src="@drawable/blueprintlabs_logo" />
+
+        <ProgressBar
+            android:id="@+id/progressBar"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:layout_marginTop="24dp"
+            android:indeterminate="true"
+            android:indeterminateTint="#1E2A4A" />
+
+        <TextView
+            android:id="@+id/loadingText"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="14dp"
+            android:text="Loading BlueprintLabs Prototype..."
+            android:textColor="#64748B"
+            android:textSize="13sp" />
+    </LinearLayout>
+
+    <!-- Offline / Error Container with Official BlueprintLabs Logo -->
     <LinearLayout
         android:id="@+id/errorLayout"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
+        android:background="#FFFFFF"
         android:gravity="center"
         android:orientation="vertical"
-        android:padding="24dp"
+        android:padding="28dp"
         android:visibility="gone">
+
+        <ImageView
+            android:layout_width="140dp"
+            android:layout_height="140dp"
+            android:contentDescription="@string/app_name"
+            android:scaleType="fitCenter"
+            android:src="@drawable/blueprintlabs_logo" />
 
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="BlueprintLabs"
+            android:layout_marginTop="16dp"
+            android:text="Unable to load BlueprintLabs"
             android:textColor="#1E2A4A"
-            android:textSize="22sp"
+            android:textSize="18sp"
             android:textStyle="bold" />
 
         <TextView
+            android:id="@+id/errorDescription"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
+            android:layout_marginTop="8dp"
             android:gravity="center"
-            android:text="Unable to load Figma prototype.\nPlease verify your internet connection."
+            android:lineSpacingExtra="3dp"
+            android:text="Please check your internet connection or verify the prototype link."
             android:textColor="#64748B"
-            android:textSize="14sp" />
+            android:textSize="13sp" />
 
         <Button
             android:id="@+id/btnRetry"
@@ -52,6 +90,7 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="20dp"
             android:backgroundTint="#1E2A4A"
+            android:paddingHorizontal="24dp"
             android:text="Retry"
             android:textColor="#FFFFFF" />
     </LinearLayout>

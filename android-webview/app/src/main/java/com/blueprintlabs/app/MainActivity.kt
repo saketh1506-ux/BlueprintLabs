@@ -2,8 +2,12 @@ package com.blueprintlabs.app
 
 import android.annotation.SuppressLint
 import android.graphics.Bitmap
+import android.net.http.SslError
 import android.os.Bundle
 import android.view.View
+import android.webkit.CookieManager
+import android.webkit.SslErrorHandler
+import android.webkit.WebChromeClient
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
@@ -12,19 +16,23 @@ import android.webkit.WebViewClient
 import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.ProgressBar
+import android.widget.TextView
 import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AppCompatActivity
 
 class MainActivity : AppCompatActivity() {
 
     private lateinit var webView: WebView
+    private lateinit var loadingLayout: LinearLayout
     private lateinit var progressBar: ProgressBar
+    private lateinit var loadingText: TextView
     private lateinit var errorLayout: LinearLayout
+    private lateinit var errorDescription: TextView
     private lateinit var btnRetry: Button
 
     // =========================================================================
     // CONFIGURATION: PUBLIC FIGMA PROTOTYPE URL
-    // Replace with your public Figma prototype link if different.
+    // Loaded without device frame emulation so it fits the mobile screen natively.
     // =========================================================================
     companion object {
         const val FIGMA_PROTOTYPE_URL =
@@ -37,8 +45,11 @@ class MainActivity : AppCompatActivity() {
         setContentView(R.layout.activity_main)
 
         webView = findViewById(R.id.webview)
+        loadingLayout = findViewById(R.id.loadingLayout)
         progressBar = findViewById(R.id.progressBar)
+        loadingText = findViewById(R.id.loadingText)
         errorLayout = findViewById(R.id.errorLayout)
+        errorDescription = findViewById(R.id.errorDescription)
         btnRetry = findViewById(R.id.btnRetry)
 
         configureWebView()
@@ -55,35 +66,57 @@ class MainActivity : AppCompatActivity() {
     private fun configureWebView() {
         val settings: WebSettings = webView.settings
 
-        // Official Requirement: Enable JavaScript & DOM Storage
+        // 1. Official Requirements: Enable JavaScript & DOM Storage
         settings.javaScriptEnabled = true
         settings.domStorageEnabled = true
+        settings.databaseEnabled = true
 
-        // Mobile responsiveness & viewport settings
+        // 2. Cookie Management for Figma sessions & tokens
+        val cookieManager = CookieManager.getInstance()
+        cookieManager.setAcceptCookie(true)
+        cookieManager.setAcceptThirdPartyCookies(webView, true)
+
+        // 3. Viewport and Mobile Scaling
         settings.loadWithOverviewMode = true
         settings.useWideViewPort = true
         settings.builtInZoomControls = false
         settings.displayZoomControls = false
         settings.setSupportZoom(false)
 
-        // Cache & Performance
+        // 4. Performance & Hardware Acceleration
+        webView.setLayerType(View.LAYER_TYPE_HARDWARE, null)
         settings.cacheMode = WebSettings.LOAD_DEFAULT
-        settings.databaseEnabled = true
+        settings.allowFileAccess = false
+        settings.allowContentAccess = false
 
-        // Custom User Agent to ensure mobile Figma prototype view
-        val defaultUserAgent = settings.userAgentString
-        settings.userAgentString = "$defaultUserAgent BlueprintLabsMobileApp/1.0"
+        // 5. Standard Mobile Chrome User-Agent
+        // Using a clean standard Chrome Android UA prevents Figma from denying custom embedded client agents
+        settings.userAgentString =
+            "Mozilla/5.0 (Linux; Android 14; Pixel 6 Build/AP1A.240405.002; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/124.0.6367.179 Mobile Safari/537.36"
 
+        // 6. WebChromeClient for page loading progress
+        webView.webChromeClient = object : WebChromeClient() {
+            override fun onProgressChanged(view: WebView?, newProgress: Int) {
+                super.onProgressChanged(view, newProgress)
+                if (newProgress in 1..99) {
+                    loadingText.text = "Loading Prototype... $newProgress%"
+                } else if (newProgress == 100) {
+                    loadingLayout.visibility = View.GONE
+                }
+            }
+        }
+
+        // 7. WebViewClient with strict error and navigation handling
         webView.webViewClient = object : WebViewClient() {
             override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
                 super.onPageStarted(view, url, favicon)
-                progressBar.visibility = View.VISIBLE
+                loadingLayout.visibility = View.VISIBLE
                 errorLayout.visibility = View.GONE
             }
 
             override fun onPageFinished(view: WebView?, url: String?) {
                 super.onPageFinished(view, url)
-                progressBar.visibility = View.GONE
+                loadingLayout.visibility = View.GONE
             }
 
             override fun onReceivedError(
@@ -92,23 +125,33 @@ class MainActivity : AppCompatActivity() {
                 error: WebResourceError?
             ) {
                 super.onReceivedError(view, request, error)
-                // Show offline/retry layout only on main frame failure
+                // Trigger native error layout only when the main frame fails to load
                 if (request?.isForMainFrame == true) {
-                    progressBar.visibility = View.GONE
+                    loadingLayout.visibility = View.GONE
                     errorLayout.visibility = View.VISIBLE
+                    errorDescription.text = "Failed to load prototype (${error?.description ?: "Network error"}).\nPlease check your internet connection and try again."
                 }
+            }
+
+            override fun shouldOverrideUrlLoading(
+                view: WebView?,
+                request: WebResourceRequest?
+            ): Boolean {
+                // Keep all in-prototype and Figma navigations inside the WebView
+                return false
             }
         }
     }
 
     private fun loadPrototype() {
-        progressBar.visibility = View.VISIBLE
+        loadingLayout.visibility = View.VISIBLE
         errorLayout.visibility = View.GONE
+        loadingText.text = "Loading BlueprintLabs Prototype..."
         webView.loadUrl(FIGMA_PROTOTYPE_URL)
     }
 
     private fun setupBackNavigation() {
-        // Modern OnBackPressedCallback for Android 14 (API 34)
+        // Android 14 (API 34) Back-Button handling
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
                 if (webView.canGoBack()) {
